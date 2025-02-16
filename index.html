@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wheel Spin Picker</title>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+
+<body class="flex justify-center items-center h-screen bg-base-100">
+
+  <div x-data="wheelPicker()" class="w-full max-w-lg p-6 bg-base-200 rounded-lg shadow-lg">
+    <h2 class="text-xl font-bold text-center mb-4">🎡 Wheel Spin Random Picker</h2>
+
+    <!-- Wheel Container -->
+    <div class="flex justify-center relative">
+      <div id="pointer" class="bg-success"></div>
+      <canvas id="wheelCanvas" width="300" height="300" class="block"></canvas>
+    </div>
+
+    <!-- Controls -->
+    <div class="mt-4 flex justify-center space-x-2">
+      <button @click="spinWheel()" class="btn btn-primary" :disabled="spinning">Spin</button>
+      <button @click="resetItems()" class="btn btn-error" :disabled="spinning">Reset</button>
+    </div>
+
+    <!-- Item List -->
+    <div class="mt-4">
+      <h3 class="font-semibold">Entries:</h3>
+      <template x-for="(item, index) in items" :key="index">
+        <div class="flex justify-between items-center p-2 bg-base-300 rounded mt-2">
+          <span x-text="item"></span>
+          <button @click="removeItem(index)" class="btn btn-xs btn-soft" :disabled="spinning">❌</button>
+        </div>
+      </template>
+    </div>
+
+    <!-- Add Item -->
+    <div class="mt-4">
+      <input x-model="newItem" @keyup.enter="addItem()" type="text" class="input input-bordered w-full"
+        placeholder="Add an item">
+      <button @click="addItem()" class="btn btn-success mt-2 w-full" :disabled="spinning">Add</button>
+    </div>
+
+    <!-- Winner Modal -->
+    <div x-show="winner" class="fixed inset-0 flex items-center justify-center bg-base-100/80">
+      <div class="bg-base-100 p-6 rounded-lg shadow-lg text-center">
+        <h2 class="text-2xl font-bold">🎉 Winner: <span x-text="winner"></span>! 🎊</h2>
+        <div class="mt-4 flex justify-center space-x-4">
+          <button @click="removeWinner()" class="btn btn-error">Remove Winner</button>
+          <button @click="spinAgain()" class="btn btn-primary">Spin Again</button>
+          <button @click="closeModal()" class="btn btn-outline">Close Modal</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+  <script>
+    function wheelPicker() {
+      return {
+        items: JSON.parse(localStorage.getItem('wheelItems')) || ['Azka', 'Bia', 'Chi'],
+        newItem: '',
+        spinning: false,
+        rotation: 0,
+        canvas: null,
+        ctx: null,
+        winner: null,
+        spinSound: new Audio('https://www.fesliyanstudios.com/play-mp3/4384'),
+        spinned: false,
+
+        init() {
+          this.canvas = document.getElementById('wheelCanvas');
+          this.ctx = this.canvas.getContext('2d');
+          this.drawWheel();
+        },
+
+        drawWheel() {
+          if (!this.items.length) {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            return;
+          }
+
+          const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4CAF50', '#FF9800', '#9C27B0'];
+          const totalItems = this.items.length;
+          const angleStep = (Math.PI * 2) / totalItems;
+
+          this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+          for (let i = 0; i < totalItems; i++) {
+            this.ctx.beginPath();
+            this.ctx.fillStyle = colors[i % colors.length];
+            this.ctx.moveTo(150, 150);
+            this.ctx.arc(150, 150, 150, angleStep * i, angleStep * (i + 1));
+            this.ctx.lineTo(150, 150);
+            this.ctx.fill();
+            this.ctx.stroke();
+
+            // Text
+            this.ctx.save();
+            this.ctx.fillStyle = "#fff";
+            this.ctx.translate(150, 150);
+            this.ctx.rotate(angleStep * i + angleStep / 2);
+            this.ctx.fillText(this.items[i], 70, 10);
+            this.ctx.restore();
+          }
+
+          this.saveToStorage();
+        },
+
+        spinWheel() {
+          if (!this.items.length || this.spinning) return;
+
+          this.spinned = true;
+          this.spinning = true;
+          this.spinSound.play();
+
+          const spinCount = 3 + Math.random() * 3;
+          const totalItems = this.items.length;
+          const degreesPerSlice = 360 / totalItems;
+
+          // Random final rotation, ensuring a smooth stopping position
+          const randomOffset = Math.random() * degreesPerSlice;
+          const targetAngle = 360 * spinCount + randomOffset;
+
+          this.rotation += targetAngle;
+          this.canvas.style.transition = 'transform 4s ease-out';
+          this.canvas.style.transform = `rotate(${this.rotation}deg)`;
+
+          setTimeout(() => {
+            this.selectWinner();
+            this.spinning = false;
+          }, 4000);
+        },
+
+        selectWinner() {
+          const totalItems = this.items.length;
+          const degreesPerSlice = 360 / totalItems;
+
+          // Normalize rotation to a value between 0-360
+          const normalizedRotation = (this.rotation % 360 + 360) % 360;
+
+          // Calculate winner index based on final rotation
+          const winnerIndex = Math.floor((360 - normalizedRotation) / degreesPerSlice) % totalItems;
+          this.celebrateWinner(this.items[winnerIndex]);
+        },
+
+        celebrateWinner(winner) {
+          launchConfetti();
+          this.winner = winner;
+        },
+
+        removeWinner() {
+          this.items = this.items.filter(item => item !== this.winner);
+          this.saveToStorage();
+          this.winner = null;
+          this.drawWheel();
+        },
+
+        closeModal() {
+          this.winner = null;
+        },
+
+        spinAgain() {
+          this.closeModal();
+          this.spinWheel();
+        },
+
+        addItem() {
+          if (this.newItem.trim() !== '') {
+            this.items.push(this.newItem);
+            this.newItem = '';
+            this.saveToStorage();
+            this.drawWheel();
+          }
+        },
+
+        removeItem(index) {
+          this.items.splice(index, 1);
+          this.saveToStorage();
+          this.drawWheel();
+        },
+
+        resetItems() {
+          this.items = [];
+          localStorage.removeItem('wheelItems');
+          this.winner = null;
+          this.drawWheel();
+        },
+
+        saveToStorage() {
+          localStorage.setItem('wheelItems', JSON.stringify(this.items));
+        }
+      }
+    }
+  </script>
+</body>
+
+</html>

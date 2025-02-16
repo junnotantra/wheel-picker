@@ -1,0 +1,13 @@
+@import "tailwindcss";
+@plugin "daisyui";
+
+#pointer {
+    position: absolute;
+    right: 0px;
+    top: 50%;
+    width: 40px;
+    height: 20px;
+    clip-path: polygon(0% 50%, 100% 0%, 100% 100%);
+    transform: translateY(-50%);
+    z-index: 10;
+}
