@@ -5,7 +5,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wheel Spin Picker</title>
-  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 </head>
 
 <body class="flex justify-center items-center h-screen bg-base-100">
@@ -66,8 +65,7 @@
         canvas: null,
         ctx: null,
         winner: null,
-        spinSound: new Audio('https://www.fesliyanstudios.com/play-mp3/4384'),
-        spinned: false,
+        beepSound: new Audio('/src/beep.wav'),
 
         init() {
           this.canvas = document.getElementById('wheelCanvas');
@@ -111,26 +109,45 @@
         spinWheel() {
           if (!this.items.length || this.spinning) return;
 
-          this.spinned = true;
           this.spinning = true;
-          this.spinSound.play();
 
           const spinCount = 3 + Math.random() * 3;
           const totalItems = this.items.length;
           const degreesPerSlice = 360 / totalItems;
 
-          // Random final rotation, ensuring a smooth stopping position
           const randomOffset = Math.random() * degreesPerSlice;
           const targetAngle = 360 * spinCount + randomOffset;
 
-          this.rotation += targetAngle;
-          this.canvas.style.transition = 'transform 4s ease-out';
-          this.canvas.style.transform = `rotate(${this.rotation}deg)`;
+          const duration = 4000; // 4s ease-out
+          let start = null;
+          let lastBeepIndex = -1;
 
-          setTimeout(() => {
-            this.selectWinner();
-            this.spinning = false;
-          }, 4000);
+          const animate = (timestamp) => {
+            if (!start) start = timestamp;
+            const progress = (timestamp - start) / duration;
+            const easedProgress = 1 - Math.pow(1 - progress, 3); // Ease out
+
+            const currentRotation = this.rotation + easedProgress * targetAngle;
+            this.canvas.style.transform = `rotate(${currentRotation}deg)`;
+
+            const normalizedRotation = (currentRotation % 360 + 360) % 360;
+            const currentIndex = Math.floor((360 - normalizedRotation) / degreesPerSlice) % totalItems;
+
+            if (currentIndex !== lastBeepIndex) {
+              this.beepSound.play();
+              lastBeepIndex = currentIndex;
+            }
+
+            if (progress < 1) {
+              requestAnimationFrame(animate);
+            } else {
+              this.rotation += targetAngle;
+              this.selectWinner();
+              this.spinning = false;
+            }
+          };
+
+          requestAnimationFrame(animate);
         },
 
         selectWinner() {
@@ -146,7 +163,11 @@
         },
 
         celebrateWinner(winner) {
-          launchConfetti();
+          confetti({
+            particleCount: 100,
+            spread: 70,
+            origin: { y: 0.6 }
+          });
           this.winner = winner;
         },
 
